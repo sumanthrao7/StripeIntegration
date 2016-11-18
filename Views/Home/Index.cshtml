@@ -1,0 +1,175 @@
+﻿@model IEnumerable<FBCode.Models.CardInfo>
+
+@{
+    ViewBag.Title = "Index";
+}
+
+<h2>Index</h2>
+@if(!Request.IsAuthenticated)
+{
+    Response.Redirect("~/Account/Login");
+}
+
+@if (Model.Count() > 0)
+{
+    <table class="table">
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Name)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Email)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.CustomerId)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.CardType)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.LastFour)
+            </th>
+            <th></th>
+        </tr>
+
+    @foreach (var item in Model)
+    {
+        <tr>
+            <td>
+                @Html.DisplayFor(modelItem => item.Name)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.Email)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.CustomerId)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.CardType)
+            </td>
+            <td>
+                @Html.DisplayFor(modelItem => item.LastFour)
+            </td>
+ 
+        </tr>
+    }
+
+    </table>
+}
+else
+{
+    <div >
+        Name (as it appears on card)
+        <input id="cc-name" type="text" name="stripeName" style="margin-bottom:5px" class="input-lg form-control email" placeholder="Name on card"  required>
+        Credit card number
+        <input id="cc-number" data-stripe="number" type="tel" style="margin-bottom:5px" class="input-lg form-control cc-number" autocomplete="cc-number"  placeholder="•••• •••• •••• ••••" required autofocus>
+        <table>
+            <tr>
+                <td>
+                    CVV
+                    <input id="cc-cvc" data-stripe="cvc" type="tel" style="width:70px" class="input-lg form-control cc-cvc" autocomplete="off"  placeholder="•••" required>
+                </td>
+                <td>
+                    Expiry
+                    <input id="cc-exp" data-stripe="exp" type="tel" style="width:120px" class="input-lg form-control cc-exp" placeholder="MM / YY" required>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="modal-footer" style="align-content:center">
+        <button type="button" id="saveCard" class="btn btn-primary">Save</button>
+    </div>
+    <div>
+        <label id="lblccnum-error" style="color:red;visibility:hidden"></label>
+    </div>
+}
+
+
+<div class="modal fade" id="successModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">SUCCESS</h4>
+            </div>
+            <div class="modal-body">
+                <p>Your card details are saved successfully!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+</div>
+
+
+<script src="~/Scripts/jquery-3.1.1.js"></script>
+<script type="text/javascript" src="https://js.stripe.com/v2/"></script>
+<script type="text/javascript" src="~/Scripts/payment-validations.js"></script>
+<script type="text/javascript" src="~/Scripts/jquery.payment.js"></script>
+<script type="text/javascript">
+    Stripe.setPublishableKey('@ViewBag.PublishableKey');
+    $(document).ready(function () {
+        $("#saveCard").click(function () {
+            var errorMessage = "";
+            var ccNumberValid = Stripe.card.validateCardNumber($('#cc-number').val());
+            var expMonth = $('#cc-exp').val().substr(0, 2);
+            var expYear = $('#cc-exp').val().substr(3, 2);
+            var cvcValid = Stripe.card.validateCVC($('#cc-cvc').val());
+            var expValid = Stripe.card.validateExpiry(expMonth, expYear);
+            if (ccNumberValid )
+            {
+                var ccType = Stripe.card.cardType($('#cc-number').val());
+                if(ccType == 'Amex')
+                {
+                    if ($('#cc-cvc').val().length != 4 || !cvcValid)
+                        errorMessage += "\n Invalid CVC code";
+                }
+                else {
+                    if ($('#cc-cvc').val().length != 3 || !cvcValid)
+                        errorMessage += "\n Invalid CVC code";
+                }
+
+            }
+            else
+            {
+                errorMessage += "Invalid credit card number";
+            }
+            if (!expValid)
+            {
+                errorMessage += "Invalid expiry date";
+            }
+            if (errorMessage != "")
+            {
+                $("#lblccnum-error").css('visibility', 'visible');
+                $("#lblccnum-error").html(errorMessage);
+            }
+            else
+            {
+                $("#lblccnum-error").css('visibility', 'hidden');
+                var $form = $(this);
+                $form.find('button').prop('disabled', true);
+                Stripe.card.createToken({
+                    number: $('#cc-number').val(),
+                    cvc: $('#cc-cvc').val(),
+                    exp_month: $('#cc-exp').val().substr(0, 2),
+                    exp_year: $('#cc-exp').val().substr(3, 2),
+                    name: $('#cc-name').val()
+                }, stripeResponseHandler);
+            }
+
+            });
+    });
+
+    stripeResponseHandler = function (status, response) {
+        data = { tokenId: response.id, cardBrand: response.card.brand, name: response.card.name, lastFour: response.card.last4 };
+        var jsonCardInfo = JSON.stringify(data);
+        $.post(
+            '@Url.Action("Index", "Home")', 
+            {jsonCardInformation :jsonCardInfo}, function () { $('#successModal').modal('show') } );
+       
+    }
+
+</script>
+
+
